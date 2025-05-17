@@ -4,44 +4,54 @@ import time
 import pygame
 
 TREE_HEIGHT = 20
-BRANCH_PROBABILITY = 0.6
+BRANCH_PROBABILITY = 2/3  # Equal probability of left, right, none
 LEFT = "L"
 RIGHT = "R"
 NONE = " "
-LEFT_OFFSET = 6
-RIGHT_OFFSET = 3
+
+# Offsets may need tuning depending on terminal font/emoji width
+LEFT_OFFSET = 4
+RIGHT_OFFSET = 2
+
 BASE_CHOP_TIME = 3.0
 INITIAL_GAME_TIME = BASE_CHOP_TIME * 3
-BASE_CHOP_ADDITION = BASE_CHOP_TIME
 
-def generate_branch(prev_side):
+# Emoji representations
+TREE_EMOJI = "🌳"
+BRANCH_EMOJI = "🌿"
+PLAYER_EMOJI = "🧑‍🚒"
+
+def generate_branch():
     if random.random() < BRANCH_PROBABILITY:
-        return LEFT if prev_side == RIGHT else RIGHT
+        return random.choice([LEFT, RIGHT])
     return NONE
 
 def draw_game(stdscr, tree, player_side, chops, high_score, game_over, time_remaining, is_new_high):
     stdscr.clear()
     height, width = stdscr.getmaxyx()
+    center_x = width // 2
 
+    # Draw the tree with branches
     for i, branch in enumerate(tree):
         y = i + 1
-        center_x = width // 2
         if branch == LEFT:
-            stdscr.addstr(y, center_x - LEFT_OFFSET, "<==")
+            stdscr.addstr(y, center_x - LEFT_OFFSET, BRANCH_EMOJI)
         elif branch == RIGHT:
-            stdscr.addstr(y, center_x + RIGHT_OFFSET, "==>")
-        stdscr.addstr(y, center_x, "||")
+            stdscr.addstr(y, center_x + RIGHT_OFFSET, BRANCH_EMOJI)
+        stdscr.addstr(y, center_x, TREE_EMOJI)
 
+    # Draw the player
     player_y = TREE_HEIGHT + 2
-    center_x = width // 2
     if player_side == LEFT:
-        stdscr.addstr(player_y, center_x - LEFT_OFFSET, "(O)")
+        stdscr.addstr(player_y, center_x - LEFT_OFFSET, PLAYER_EMOJI)
     else:
-        stdscr.addstr(player_y, center_x + RIGHT_OFFSET, "(O)")
+        stdscr.addstr(player_y, center_x + RIGHT_OFFSET, PLAYER_EMOJI)
 
+    # Display score and timer
     stdscr.addstr(0, 2, f"Chops: {chops}")
     stdscr.addstr(2, 2, f"Time: {max(0, time_remaining):.2f}s")
 
+    # Game over message
     if game_over:
         stdscr.addstr(player_y + 2, center_x - 5, "GAME OVER!")
         if is_new_high:
@@ -56,26 +66,17 @@ def main(stdscr):
     curses.curs_set(0)
     stdscr.nodelay(True)
 
-    high_score = 0  # Track high score for the session
-    is_new_high = False  # Track if current game beat the high score
+    high_score = 0
+    is_new_high = False
 
     def init_game():
         pygame.mixer.init()
         pygame.mixer.music.load("Lumber.mp3")
         pygame.mixer.music.play(-1)
+        tree = [generate_branch() for _ in range(TREE_HEIGHT)]
+        return tree, RIGHT, 0, False, INITIAL_GAME_TIME, time.time()
 
-        tree = []
-        last_branch_side = RIGHT
-
-        for _ in range(TREE_HEIGHT):
-            branch = generate_branch(last_branch_side)
-            if branch != NONE:
-                last_branch_side = branch
-            tree.append(branch)
-
-        return tree, RIGHT, 0, False, INITIAL_GAME_TIME, time.time(), last_branch_side
-
-    tree, player_side, chops, game_over, time_remaining, last_time, last_branch_side = init_game()
+    tree, player_side, chops, game_over, time_remaining, last_time = init_game()
 
     while True:
         now = time.time()
@@ -93,7 +94,7 @@ def main(stdscr):
 
         if game_over:
             if key == ord('r'):
-                tree, player_side, chops, game_over, time_remaining, last_time, last_branch_side = init_game()
+                tree, player_side, chops, game_over, time_remaining, last_time = init_game()
                 continue
             else:
                 continue
@@ -114,12 +115,9 @@ def main(stdscr):
             continue
 
         tree.pop()
-        new_branch = generate_branch(last_branch_side)
-        if new_branch != NONE:
-            last_branch_side = new_branch
-        tree.insert(0, new_branch)
+        tree.insert(0, generate_branch())
         chops += 1
-        time_remaining += BASE_CHOP_ADDITION / chops if chops > 0 else 0
+        time_remaining += BASE_CHOP_TIME / chops if chops > 0 else 0
 
 if __name__ == "__main__":
     curses.wrapper(main)
